@@ -57,7 +57,7 @@ module IntSet =
 	      end)
 
 (********************************************************)
-(**  Color Operations  **********************************)
+(***  Color Operations  *********************************)
 (********************************************************)
 
 let intensity r g b  = sqrt ((float_of_int r)**2.0 +.
@@ -355,7 +355,10 @@ let new_dbody_from_body body =
 (************************************************)
 
 class dtrace () = 
-  let tag = Canvas.create_line ~xys:[] (canvas ()) in
+  let tag = 
+    try Canvas.create_line ~xys:[(0,0);(0,0)] (canvas ()) 
+    with e -> failwith (sprintf "line drawing failed: %s" (Printexc.to_string e))
+  in
   let _ = Canvas.configure_line ~smooth:false (canvas ()) tag in
 object (self)
   inherit [trace] display_item tag
