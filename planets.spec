@@ -1,6 +1,6 @@
 Summary: A simple and fun planetary simulator
 Name: planets
-Version: 0.1.11
+Version: 0.1.13
 Release: 1
 URL: http://planets.homedns.org
 Source0: %{name}-%{version}.tgz
