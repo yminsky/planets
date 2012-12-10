@@ -24,14 +24,10 @@ open Printf
 open State
 open Genlex
 
-let major_version = 1
-let minor_version = 0
-
-
 let lexer = make_lexer ["("; ","; ")"; "["; "]";
-			"pos"; "velocity"; "radius"; "color"; "mass"; "id";
-			"zoom"; "center"; "delta"; "body"; "iterations" ;
-		       ]
+                        "pos"; "velocity"; "radius"; "color"; "mass"; "id";
+                        "zoom"; "center"; "delta"; "body"; "iterations" ;
+                       ]
 
 let rec parse_next list = parser
   | [< 'Kwd "zoom"; 'Float x; e = parse_next ((`Zoom x)::list)  >] -> e
@@ -53,7 +49,7 @@ and parse_bnext list = parser
   | [< 'Kwd "mass";        'Float x;             e = parse_bnext ((`Mass x)::list)>] -> e
   | [< 'Kwd "id";          'Int x;               e = parse_bnext ((`Id x)::list)>] -> e
   | [< >] -> `Body list
-  
+
 
 
 (* Converting a state description to a state *)
@@ -62,12 +58,12 @@ exception Missing of string
 
 let all_matches ~f list =
   let rec all_matches ~partial list = match list with
-      [] -> partial 
+      [] -> partial
     | hd::tl ->
-	try 
-	  all_matches ~partial:((f hd)::partial) tl
-	with
-	    Wrong_type -> all_matches ~partial tl
+        try
+          all_matches ~partial:((f hd)::partial) tl
+        with
+            Wrong_type -> all_matches ~partial tl
   in
     all_matches ~partial:[] list
 
@@ -75,56 +71,56 @@ let all_matches ~f list =
 (* get first match.  If none available, then raise (Missing name) error *)
 let rec first_match ~f ~name list = match list with
     [] -> raise (Missing name)
-  | hd::tl -> 
-      try 
-	f hd
+  | hd::tl ->
+      try
+        f hd
       with
-	  Wrong_type -> first_match ~f ~name tl
+          Wrong_type -> first_match ~f ~name tl
 
 
 (* get first match.  If no match available, then return default. *)
 let rec first_match_default ~f ~name ~default list = match list with
     [] -> default
-  | hd::tl -> 
-      try 
-	f hd
+  | hd::tl ->
+      try
+        f hd
       with
-	  Wrong_type -> first_match_default ~f ~name ~default tl
+          Wrong_type -> first_match_default ~f ~name ~default tl
 
 
-let build_body bdesc = 
+let build_body bdesc =
   try
-    { pos = first_match      
-	      ~f:(function `Pos pos -> pos | _ -> raise Wrong_type)                       
-	      ~name:"pos" bdesc; 
-      velocity = first_match 
-		   ~f:(function `Velocity velocity -> velocity | _ -> raise Wrong_type)        
-		   ~name:"velocity" bdesc; 
-      radius = first_match   
-		 ~f:(function `Radius radius -> radius | _ -> raise Wrong_type)              
-		 ~name:"radius" bdesc; 
-      color = first_match    
-		~f:(function `Color (color:string) -> `Color color | _ -> raise Wrong_type) 
-		~name:"color" bdesc; 
-      mass = first_match     
-	       ~f:(function `Mass mass -> mass | _ -> raise Wrong_type)                    
-	       ~name:"mass" bdesc; 
-      id = first_match       
-	     ~f:(function `Id id -> id | _ -> raise Wrong_type)                          
-	     ~name:"id" bdesc; 
+    { pos = first_match
+              ~f:(function `Pos pos -> pos | _ -> raise Wrong_type)
+              ~name:"pos" bdesc;
+      velocity = first_match
+                   ~f:(function `Velocity velocity -> velocity | _ -> raise Wrong_type)
+                   ~name:"velocity" bdesc;
+      radius = first_match
+                 ~f:(function `Radius radius -> radius | _ -> raise Wrong_type)
+                 ~name:"radius" bdesc;
+      color = first_match
+                ~f:(function `Color (color:string) -> `Color color | _ -> raise Wrong_type)
+                ~name:"color" bdesc;
+      mass = first_match
+               ~f:(function `Mass mass -> mass | _ -> raise Wrong_type)
+               ~name:"mass" bdesc;
+      id = first_match
+             ~f:(function `Id id -> id | _ -> raise Wrong_type)
+             ~name:"id" bdesc;
       i = None
     }
-  with 
+  with
       Missing name ->
-	raise (Missing (sprintf "body: %s" name))
+        raise (Missing (sprintf "body: %s" name))
 
 
-let build_state sdesc = 
+let build_state sdesc =
   try
-    { 
+    {
       d_zoom = first_match ~f:(function `Zoom zoom -> zoom  | _ -> raise Wrong_type)                              ~name:"zoom" sdesc;
-      d_center = first_match_default ~f:(function `Center center -> center  | _ -> raise Wrong_type) 	          ~name:"center"             ~default:(0.,0.) sdesc;
-      d_delta = first_match ~f:(function `Delta delta -> delta  | _ -> raise Wrong_type) 		          ~name:"delta" sdesc;
+      d_center = first_match_default ~f:(function `Center center -> center  | _ -> raise Wrong_type)              ~name:"center"             ~default:(0.,0.) sdesc;
+      d_delta = first_match ~f:(function `Delta delta -> delta  | _ -> raise Wrong_type)                          ~name:"delta" sdesc;
       d_bodies = List.map ~f:build_body   (all_matches ~f:(function `Body bodies -> bodies | _ -> raise Wrong_type) sdesc);
     }
   with Missing name ->
@@ -135,15 +131,15 @@ let build_state sdesc =
 (********************************************************************)
 (********************************************************************)
 
-let parse_state in_c = 
+let parse_state in_c =
   let token_stream = lexer (Stream.of_channel in_c) in
     build_state (parse_next [] token_stream)
 
 let string_of_float x = sprintf "%.20e" x
 let string_of_int x = sprintf "%d" x
 
-let string_of_pair pair = 
-  sprintf "(%s, %s)" (string_of_float (fst pair)) 
+let string_of_pair pair =
+  sprintf "(%s, %s)" (string_of_float (fst pair))
     (string_of_float (snd pair))
 
 let string_of_color color = match color with
@@ -166,7 +162,7 @@ let write_body out_c body =
     fprintf out_c "%scolor    \"%s\"\n" indent (string_of_color body.color);
     fprintf out_c "%sid       %s\n" indent (string_of_int body.id)
 
-let write_state out_c = 
+let write_state out_c =
   fprintf out_c "zoom   %s\n" (string_of_float state.zoom#v);
   fprintf out_c "center %s\n" (string_of_pair state.center#v);
   fprintf out_c "delta  %s\n" (string_of_float state.delta#v);
@@ -174,30 +170,30 @@ let write_state out_c =
   close_out out_c
 
 
-(* Some final details: 
+(* Some final details:
    choosing the save directory and the external interface *)
 
-let is_dir fname = 
+let is_dir fname =
   let stats = Unix.stat fname in
     stats.Unix.st_kind = Unix.S_DIR
 
-let save_directory = 
-  try 
+let save_directory =
+  try
     let home = Sys.getenv "HOME" in
     let pdir = Filename.concat home ".planets" in
     if Sys.file_exists pdir & is_dir pdir
     then pdir
-    else 
+    else
       (* PROBLEM: is 0x1FF really the right mode? *)
-      try Unix.mkdir pdir 0x1FF; pdir 
-      with Unix.Unix_error (err,func,arg) -> ""
+      try Unix.mkdir pdir ~perm:0x1FF; pdir
+      with Unix.Unix_error (_,_,_) -> ""
   with
       Not_found -> ""
 
 (******************************************************************)
 
 let write_state_file filename = write_state (open_out filename)
-let read_state_file filename = 
+let read_state_file filename =
   let dead_state = parse_state (open_in filename) in
   reanimate_dead_state dead_state
 
@@ -208,17 +204,17 @@ let write_state key =
   try
     write_state_file fname
   with
-      Sys_error x -> 
-	Common.debug_msg (sprintf "%s: failed to load file %s" x fname)
+      Sys_error x ->
+        Common.debug_msg (sprintf "%s: failed to load file %s" x fname)
 
-let read_state key = 
+let read_state key =
   let fname = Filename.concat save_directory (saved_fname key) in
   try
     read_state_file fname
-  with 
-      Sys_error x -> 
-	Common.debug_msg (sprintf "%s: failed to load file %s" x fname)
-  
+  with
+      Sys_error x ->
+        Common.debug_msg (sprintf "%s: failed to load file %s" x fname)
+
 
 (****************************************************************)
 
@@ -227,7 +223,7 @@ let help_start = not (Sys.file_exists help_fname)
 
 let set_help_start x = match x with
     true -> if Sys.file_exists help_fname then Sys.remove help_fname
-  | false -> 
+  | false ->
       let file = open_out help_fname in
       close_out file
-    
+

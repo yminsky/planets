@@ -1,14 +1,12 @@
 open StdLabels
 open MoreLabels
 
-module type OrderedType =
-sig
+module type OrderedType = sig
   type t
   val compare: t -> t -> int
 end
 
-module type S =
-sig
+module type S = sig
   type key
   type 'a t
   val empty: 'a t
@@ -28,7 +26,7 @@ sig
   val keys: 'a t -> key list
 end
 
-module Make(Ord: OrderedType) : (S with type key = Ord.t) = 
+module Make(Ord: OrderedType) : (S with type key = Ord.t) =
 struct
 
   (* create the underlying map module *)
@@ -46,41 +44,41 @@ struct
   let fold = UMap.fold
 
   let has_key key map =
-    try 
+    try
       let _ = find key map in
-	true
+        true
     with
-	Not_found -> false
+        Not_found -> false
 
-  let of_list pairlist = 
-    let rec loop pairlist map = 
+  let of_list pairlist =
+    let rec loop pairlist map =
       match pairlist with
-	  [] -> map
-	| (key,data)::tl -> loop tl (add key data map)
+          [] -> map
+        | (key,data)::tl -> loop tl (add ~key ~data map)
     in
       loop pairlist empty
 
-  let to_list map = 
+  let to_list map =
     fold ~f:(fun ~key ~data list -> (key,data)::list) map ~init:[]
 
-  (* takes a list with no duplicates, and produces a 
+  (* takes a list with no duplicates, and produces a
      map from elements of that list to indices into the list *)
-  let build_index list = 
+  let build_index list =
     let rec loop list map i = match list with
-	[] -> map
+        [] -> map
       | hd::tl -> loop tl (add ~key:hd ~data:i map) (i+1)
     in
       loop list empty 0
 
   let keys map =
-    fold ~f:(fun ~key ~data list -> key::list) map ~init:[]
+    fold ~f:(fun ~key ~data:_ list -> key::list) map ~init:[]
 
 
   let filter ~f map =
-    fold ~f:(fun ~key ~data map -> 
-	       if f ~key ~data
-	       then add ~key ~data map
-	       else map)
+    fold ~f:(fun ~key ~data map ->
+               if f ~key ~data
+               then add ~key ~data map
+               else map)
       map
     ~init:empty
 

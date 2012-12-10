@@ -338,8 +338,7 @@ object (self)
   initializer
     begin
       Canvas.bind ~events:[`ButtonPress] ~extend:false ~fields:[]
-        ~action:(fun e -> delete_body_by_id id)
-                   (* change_body_color_by_id id)  *)
+        ~action:(fun _ -> delete_body_by_id id)
         (canvas ()) tag;
       self#draw_internal body
     end
@@ -360,7 +359,7 @@ class dtrace () =
     with e -> failwith (sprintf "line drawing failed: %s" (Printexc.to_string e))
   in
   let _ = Canvas.configure_line ~smooth:false (canvas ()) tag in
-object (self)
+object (_self)
   inherit [trace] display_item tag
 
   method draw_internal trace =
@@ -416,7 +415,7 @@ class ['a] new_velocity planet =
   let pos = planet#pos in
   let tag = Canvas.create_line ~xys:[pos; pos] ~arrow:`Last (canvas ()) in
   let _ = Canvas.configure_line ~fill:fgcolor  (canvas ()) tag in
-object (self)
+object (_self)
 
   inherit ['a] display_item tag
 
@@ -565,7 +564,7 @@ let remove_all_traces () =
 
 let _ =
   disp_state.tracing#register_callback
-    (fun oldval newval ->
+    (fun _oldval newval ->
        if not newval then remove_all_traces ())
 
 let remove_dead () =
@@ -693,7 +692,7 @@ let rand_tweak size =
 
 let rdist ?(n=6) low high =
   let x = ref 0.0 in
-  for i = 0 to n -1 do
+  for _i = 0 to n - 1 do
     x := !x +. Random.float (1.0/. float n)
   done;
   low +. (high -. low) *. !x
@@ -745,7 +744,7 @@ let handler_to_string h =
   let matcher = match h.key with
       Key s -> s
     | KeySym s -> s
-    | KeyList slist -> String.concat ", " slist
+    | KeyList slist -> String.concat ~sep:", " slist
     | Other -> "Any other key"
   in
   "\t" ^ matcher ^
@@ -754,7 +753,7 @@ let handler_to_string h =
 
 let hlist_to_string hlist =
   let slist = List.map ~f:handler_to_string hlist in
-  String.concat "\n" slist
+  String.concat ~sep:"\n" slist
 
 (***********************************************************)
 
@@ -817,7 +816,7 @@ and select_planet_handler e =
     pos2 := (e.ev_MouseX,e.ev_MouseY);
     Canvas.coords_set (canvas ()) tag ~xys:[!pos1; !pos2]
 
-  and finish pause_state e =
+  and finish pause_state _ =
     Canvas.delete (canvas ()) [tag];
     disp_state.tracked_ids <- selected_ids !pos1 !pos2;
     disp_state.paused#set pause_state;
@@ -874,7 +873,7 @@ and add_planet pos rad_int =
       bind ~events:[`ButtonPress] ~extend:false ~fields:[] ~action:(finish pause_state planet velocity)
         (uw disp_state.canvas)
 
-  and finish pause_state planet velocity e =
+  and finish pause_state planet velocity _ =
     bind ~events:[`Motion] ~extend:false (uw disp_state.canvas);
     bind ~events:[`ButtonPress] ~extend:false (uw disp_state.canvas);
     restore_normal_bindings ();
@@ -908,9 +907,9 @@ and keyhandlers =
     { key = Key "H";
       description = (Lstrings.get `display_help );
       handler =
-        (fun e ->
-           Help.create_window (uw disp_state.toplevel)
-           (hlist_to_string keyhandlers));
+        (fun _ ->
+          Help.create_window (uw disp_state.toplevel)
+            (hlist_to_string keyhandlers));
     };
 
     { key =  Key "a";
@@ -921,25 +920,25 @@ and keyhandlers =
 
     { key = KeyList ["plus";"equal";"KP_Add"];
       description = (Lstrings.get `zoom_in );
-      handler = (fun e ->
+      handler = (fun _ ->
                    state.zoom#set (state.zoom#v *. 1.1);
                    redraw_all_basic ());
     };
     { key = KeyList ["minus";"underscore"; "KP_Subtract"];
       description = (Lstrings.get `zoom_out );
-      handler = (fun e ->
+      handler = (fun _ ->
                    state.zoom#set (state.zoom#v /. 1.1);
                    redraw_all_basic ());
     };
 
     { key = Key "b";
       description = (Lstrings.get `toggle_true_bounce);
-      handler = (fun e -> truebounce#flip;)
+      handler = (fun _ -> truebounce#flip;)
     };
 
     { key = KeyList ["c"; "space"];
       description =  (Lstrings.get `center);
-      handler = (fun e ->
+      handler = (fun _ ->
                    disp_state.tracking#set false;
                    Physics.zero_speed ();
                    Physics.center ();
@@ -948,28 +947,28 @@ and keyhandlers =
     };
     { key = Key "k";
       description = (Lstrings.get `option_dialog);
-      handler = (fun e -> toggle_opt_dialog ())
+      handler = (fun _ -> toggle_opt_dialog ())
     };
     { key = Key "o";
       description = (Lstrings.get `change_all_colors);
-      handler = (fun e ->
+      handler = (fun _ ->
                    change_all_body_colors ();
                    redraw_all_basic ());
     };
     { key = KeyList [ "q" ; "Escape"] ;
       description = (Lstrings.get `quit);
-      handler = (fun e -> exit 0);
+      handler = (fun _ -> exit 0);
     };
     { key = Key "e" ;
       description = (Lstrings.get `reset);
-      handler = (fun e ->
+      handler = (fun _ ->
                    clear_all_traces ();
                    state.bodies <- [];
                    redraw_all ());
     };
     { key = Key "s";
       description =  (Lstrings.get `save );
-      handler = (fun e ->
+      handler = (fun _ ->
                    let old_pause_state = disp_state.paused#v in
                      disp_state.paused#set true;
                      get_next_key ~f:(fun key ->
@@ -980,7 +979,7 @@ and keyhandlers =
     };
     { key = Key "l";
       description = (Lstrings.get `load);
-      handler = (fun e ->
+      handler = (fun _ ->
                    let old_pause_state = disp_state.paused#v in
                      disp_state.paused#set true;
                      get_next_key ~f:(fun key ->
@@ -996,7 +995,7 @@ and keyhandlers =
     };
     { key = Key "u";
       description = (Lstrings.get `undo);
-      handler = (fun e ->
+      handler = (fun _ ->
                    undo ();
                    clear_all_traces ();
                    redraw_all ())
@@ -1004,56 +1003,56 @@ and keyhandlers =
 
     { key = Key "g";
       description = (Lstrings.get `goback);
-      handler = (fun e ->
+      handler = (fun _ ->
                    goback ();
                    clear_all_traces ();
                    redraw_all ())
     };
     { key = Key "p";
       description = (Lstrings.get `toggle_pause);
-      handler = (fun e ->
+      handler = (fun _ ->
                    disp_state.paused#flip)
     };
     { key = Key "t";
       description = (Lstrings.get `toggle_trace);
-      handler = (fun e ->
+      handler = (fun _ ->
                    disp_state.tracing#flip)
     };
 
     { key = Key "d";
       description = (Lstrings.get `double_trace);
-      handler = (fun e ->
+      handler = (fun _ ->
                    transient.bound#set (min 300 (transient.bound#v * 2)));
     };
 
     { key = Key "h";
       description = (Lstrings.get `halve_trace );
-      handler = (fun e ->
+      handler = (fun _ ->
                    transient.bound#set (max 3 (transient.bound#v / 2))
                 )
     };
 
     { key = Key "j";
       description = (Lstrings.get `place_random_orbital );
-      handler = (fun e ->
+      handler = (fun _ ->
                    orbital_planet (Random.int 2 = 1) )
     };
 
     { key = Key "J";
       description = (Lstrings.get `place_random_orbital_uni );
-      handler = (fun e -> orbital_planet true)
+      handler = (fun _ -> orbital_planet true)
     };
 
     { key = Key "r";
       description = (Lstrings.get `place_random );
-      handler = (fun e ->
+      handler = (fun _ ->
                    random_planet () )
     };
 
 
     { key = Key "x";
       description = (Lstrings.get `cancel_com );
-      handler = (fun e ->
+      handler = (fun _ ->
                    disp_state.tracking#flip;
                 )
     };
@@ -1061,7 +1060,7 @@ and keyhandlers =
     (* Panning Around *)
     { key = KeySym "Up";
       description = (Lstrings.get `pan_up);
-      handler = (fun e ->
+      handler = (fun _ ->
                    let (x_s,y_s) = real_to_screen(state.center#v) in
                    let y_s = y_s -. (float !screen_height)/.30.0 in
                    let (x,y) = screen_to_real( pair_to_int (x_s,y_s) ) in
@@ -1071,7 +1070,7 @@ and keyhandlers =
 
     { key = KeySym "Down";
       description = (Lstrings.get `pan_down);
-      handler = (fun e ->
+      handler = (fun _ ->
                    let (x_s,y_s) = real_to_screen(state.center#v) in
                    let y_s = y_s +. (float !screen_height)/.30.0 in
                    let (x,y) = screen_to_real( pair_to_int (x_s,y_s) ) in
@@ -1081,7 +1080,7 @@ and keyhandlers =
     };
     { key = KeySym "Left";
       description = (Lstrings.get `pan_left);
-      handler = (fun e ->
+      handler = (fun _ ->
                    let (x_s,y_s) = real_to_screen(state.center#v) in
                    let x_s = x_s -. (float !screen_width)/.30.0 in
                    let (x,y) = screen_to_real( pair_to_int (x_s,y_s) ) in
@@ -1091,7 +1090,7 @@ and keyhandlers =
     };
     { key = KeySym "Right";
       description = (Lstrings.get `pan_right);
-      handler = (fun e ->
+      handler = (fun _ ->
                    let (x_s,y_s) = real_to_screen(state.center#v) in
                    let x_s = x_s +. (float !screen_width)/.30.0 in
                    let (x,y) = screen_to_real( pair_to_int (x_s,y_s) ) in
@@ -1110,19 +1109,19 @@ and kid_keyhandlers =
                      "KP_Delete"; "KP_En`ter"; "KP_Add"; "KP_Multiply";
                      "KP_Divide"; "Num_Lock"; ];
       description = (Lstrings.get `place_random );
-      handler = (fun e ->
+      handler = (fun _ ->
                    random_planet () )
     };
 
     { key = Key "=";
       description = (Lstrings.get `zoom_in );
-      handler = (fun e ->
+      handler = (fun _ ->
                    state.zoom#set (state.zoom#v *. 1.1);
                    redraw_all_basic ());
     };
     { key = Key "-";
       description = (Lstrings.get `zoom_out );
-      handler = (fun e ->
+      handler = (fun _ ->
                    state.zoom#set (state.zoom#v *. 0.9);
                    redraw_all_basic ());
     };
@@ -1130,7 +1129,7 @@ and kid_keyhandlers =
 
     { key = KeySym "Up";
       description = (Lstrings.get `pan_up);
-      handler = (fun e ->
+      handler = (fun _ ->
                    let (x_s,y_s) = real_to_screen(state.center#v) in
                    let y_s = y_s -. (float !screen_height)/.30.0 in
                    let (x,y) = screen_to_real( pair_to_int (x_s,y_s) ) in
@@ -1139,7 +1138,7 @@ and kid_keyhandlers =
     };
     { key = KeySym "Down";
       description = (Lstrings.get `pan_down);
-      handler = (fun e ->
+      handler = (fun _ ->
                    let (x_s,y_s) = real_to_screen(state.center#v) in
                    let y_s = y_s +. (float !screen_height)/.30.0 in
                    let (x,y) = screen_to_real( pair_to_int (x_s,y_s) ) in
@@ -1149,7 +1148,7 @@ and kid_keyhandlers =
     };
     { key = KeySym "Left";
       description = (Lstrings.get `pan_left);
-      handler = (fun e ->
+      handler = (fun _ ->
                    let (x_s,y_s) = real_to_screen(state.center#v) in
                    let x_s = x_s -. (float !screen_width)/.30.0 in
                    let (x,y) = screen_to_real( pair_to_int (x_s,y_s) ) in
@@ -1159,7 +1158,7 @@ and kid_keyhandlers =
     };
     { key = KeySym "Right";
       description =  (Lstrings.get `pan_right);
-      handler = (fun e ->
+      handler = (fun _ ->
                    let (x_s,y_s) = real_to_screen(state.center#v) in
                    let x_s = x_s +. (float !screen_width)/.30.0 in
                    let (x,y) = screen_to_real( pair_to_int (x_s,y_s) ) in
@@ -1169,7 +1168,7 @@ and kid_keyhandlers =
     };
     { key = KeySym "space";
       description =  (Lstrings.get `center);
-      handler = (fun e ->
+      handler = (fun _ ->
                    disp_state.tracking#set false;
                    Physics.zero_speed ();
                    Physics.center ();
@@ -1178,21 +1177,21 @@ and kid_keyhandlers =
     };
     { key = KeyList ["q";"w";"e";"a";"s";"d";"z";"x";"c"];
       description = (Lstrings.get `change_all_colors);
-      handler = (fun e ->
+      handler = (fun _ ->
                    change_all_body_colors ();
                    redraw_all_basic ());
     };
 
     { key = KeyList ["1";"2";"3";"4";"5";"6";"7";"8";"9"];
       description = (Lstrings.get `toggle_trace);
-      handler = (fun e ->
+      handler = (fun _ ->
                    disp_state.tracing#flip)
     };
 
 
     { key = KeySym "Escape";
       description = (Lstrings.get `reset);
-      handler = (fun e ->
+      handler = (fun _ ->
                    clear_all_traces ();
                    state.bodies <- [];
                    redraw_all ());
@@ -1200,7 +1199,7 @@ and kid_keyhandlers =
 
     { key = Other;
       description = (Lstrings.get `place_random );
-      handler = (fun e -> orbital_planet (Random.int 2 = 0) )
+      handler = (fun _ -> orbital_planet (Random.int 2 = 0) )
     };
   ]
 
@@ -1215,7 +1214,7 @@ and main_key_handler e =
         if (match handler.key with
                 Key hkey -> hkey = key
               | KeySym hkeysym -> hkeysym = keysym
-              | KeyList hkeys -> List.mem keysym hkeys
+              | KeyList hkeys -> List.mem keysym ~set:hkeys
               | Other -> true )
         then
           ( debug_msg handler.description;
@@ -1298,7 +1297,7 @@ let toggle_kidmode () =
       `None -> grab ()
     | `Global | `Local -> ungrab ()
 
-let _ = kidmode#register_callback (fun oldv newv -> toggle_kidmode ())
+let _ = kidmode#register_callback (fun _oldv _newv -> toggle_kidmode ())
 
 let init () =
   disp_state.toplevel <- Some (openTk ~clas:app_class ());
