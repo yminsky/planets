@@ -16,10 +16,10 @@
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *)
 
-let version = "0.1.11"
+let version = "0.1.13"
 
 let debugging = ref false
-let debug_msg msg = 
+let debug_msg msg =
   if !debugging then
     (print_string msg;
      print_newline ())
