@@ -1,3 +1,5 @@
+open Core.Std
+
 (*  Planets:  A celestial simulator
     Copyright (C) 2001-2003  Yaron M. Minsky
 
@@ -16,17 +18,10 @@
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open StdLabels
-
-open Printf
+open Core.Std
 open Tk
 
-
-module IntMap = AugMap.Make(struct type t = int let compare = compare end)
-module IntSet = AugSet.Make(struct type t = int let compare = compare end)
-
-let trunc = int_of_float
-
+let trunc = Int.of_float
 
 (* Basic types *)
 type body = { pos: float * float;
@@ -79,13 +74,13 @@ let empty_trace color = { t_queue = Fqueue.empty;
 
 
 
-type transient = { mutable traces: trace IntMap.t;
+type transient = { mutable traces: trace Int.Map.t;
                    mutable trace_round: int;
                    mutable com_trace: trace;
                    bound: int Options.live_value;
                  }
 
-let transient =  { traces = IntMap.empty;
+let transient =  { traces = Int.Map.empty;
                    com_trace = empty_trace `Black;
                    trace_round = 0;
                    bound = new Options.live_value 20;
@@ -102,9 +97,11 @@ let trace_inc () =
   transient.trace_round <- transient.trace_round + 1
 
 let trace_push pos trace =
-  { trace with t_queue = Fqueue.push { t_pos = pos;
-                                       t_round = transient.trace_round; }
-      trace.t_queue
+  { trace with
+    t_queue =
+      Fqueue.enqueue trace.t_queue
+        { t_pos = pos;
+          t_round = transient.trace_round; }
   }
 
 let trace_to_list trace =
@@ -113,57 +110,56 @@ let trace_to_list trace =
     trace_queue
 
 let rec trace_filt trace =
-  try
-    let oldest = Fqueue.top trace.t_queue in
+  match Fqueue.dequeue trace.t_queue with
+  | None -> trace
+  | Some (oldest,remaining) ->
     if transient.trace_round - oldest.t_round > transient.bound#v
-    then trace_filt { trace with t_queue = Fqueue.remove trace.t_queue }
+    then trace_filt { trace with t_queue = remaining }
     else trace
-  with
-    Fqueue.Empty -> trace
 
 (*************************************************)
 (*************************************************)
 
 let add_to_trace body =
   let trace =
-    try
-      IntMap.find body.id transient.traces
-    with
-      Not_found -> empty_trace body.color
+    match Map.find transient.traces body.id with
+    | Some x -> x
+    | None -> empty_trace body.color
   in
   transient.traces <-
-    IntMap.add ~key:body.id ~data:(trace_push body.pos trace) transient.traces
+    Map.add transient.traces ~key:body.id ~data:(trace_push body.pos trace)
 
 let add_to_com_trace com =
   transient.com_trace <- trace_push com transient.com_trace
 
 let remove_empty_traces () =
-  IntMap.fold ~f:(fun ~key:id ~data:trace map ->
-    if Fqueue.length trace.t_queue = 0 then map
-    else IntMap.add ~key:id ~data:trace map)
-    transient.traces ~init:IntMap.empty
+  Map.fold transient.traces ~init:Int.Map.empty
+    ~f:(fun ~key:id ~data:trace map ->
+      if Fqueue.length trace.t_queue = 0 then map
+      else Map.add map ~key:id ~data:trace)
+
 
 let update_traces () =
   List.iter ~f:add_to_trace state.bodies;
   trace_inc ();
-  transient.traces <- IntMap.map ~f:trace_filt transient.traces;
+  transient.traces <- Map.map ~f:trace_filt transient.traces;
   transient.traces <- remove_empty_traces ()
 
 (*************************************************)
 
 let clear_trace body =
-  transient.traces <- IntMap.remove body.id  transient.traces
+  transient.traces <- Map.remove transient.traces body.id
 
 (*************************************************)
 
 let remove_traces ids =
   transient.traces <-
     List.fold_left
-    ~f:(fun map id -> IntMap.remove id map)
+    ~f:(fun map id -> Map.remove map id)
     ~init:transient.traces ids
 
 let clear_all_traces () =
-  transient.traces <- (IntMap.map
+  transient.traces <- (Map.map
                          ~f:(fun trace -> { trace with t_queue = Fqueue.empty})
                          transient.traces);
   transient.traces <- remove_empty_traces ()
@@ -269,8 +265,8 @@ let sum nums =
 (***********************************************)
 (***********************************************)
 (***********************************************)
-let pair_to_float (x,y) = (float_of_int x, float_of_int y)
-let pair_to_int (x,y) = (int_of_float x, int_of_float y)
+let pair_to_float (x,y) = (Float.of_int x, Float.of_int y)
+let pair_to_int (x,y) = (Int.of_float x, Int.of_float y)
 
 (* Simple graphics primitves *)
 
@@ -292,12 +288,12 @@ let real_to_screen pos =
 let wavg x1 w1 x2 w2 =
   ((x1 *. w1) +. (x2 *. w2)) /. (w1 +. w2)
 
-let round f = truncate (floor (f +. 0.5))
+let round x = Float.to_int (Float.round_nearest x)
 
 let wavgi x1 w1 x2 w2 =
   round (wavg
-           (float_of_int x1) w1
-           (float_of_int x2) w2)
+           (Float.of_int x1) w1
+           (Float.of_int x2) w2)
 
 let rgb r g b =
   `Color (sprintf "#%02X%02X%02X" r g b)

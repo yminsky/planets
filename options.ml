@@ -1,8 +1,5 @@
-open StdLabels
-open MoreLabels
-
+open Core.Std
 open Tk
-open Printf
 open Common
 
 exception Unimplemented
@@ -12,8 +9,8 @@ exception Unimplemented
 (****************************************************************)
 
 let random_chr () =
-  let rand = Random.int ((Char.code 'z') - (Char.code 'a')) in
-  Char.chr ((Char.code 'a') + rand)
+  let rand = Random.int (Char.to_int 'z' - Char.to_int 'a') in
+  Char.of_int_exn (Char.to_int 'a' + rand)
 
 let random_name length =
   let str = String.create length in
@@ -21,12 +18,6 @@ let random_name length =
     str.[i] <-  random_chr ()
   done;
   str
-
-module StringMap = AugMap.Make(
-  struct
-    type t = string
-    let compare = compare
-  end)
 
 (*****************************************************************)
 (**  Live Values  ************************************************)
@@ -51,8 +42,10 @@ object (_self)
         try cb value newval
         with exn -> debug_msg
           (match name with
-            None -> (sprintf "live_value#set: Callback failed with exn <%s>" (Printexc.to_string exn))
-          | Some name -> (sprintf "live_value#set %s: Callback failed with exn <%s>" name (Printexc.to_string exn))))
+          | None -> (sprintf "live_value#set: Callback failed with exn <%s>"
+                       (Exn.to_string exn))
+          | Some name -> (sprintf "live_value#set %s: Callback failed with exn <%s>"
+                            name (Exn.to_string exn))))
       callback_list
 
   method set_name newname = name <- Some newname
@@ -167,14 +160,14 @@ object (self)
                          "no widget exists")
   | Some widget ->
     if Winfo.exists widget
-    then int_of_float (Scale.get widget)
+    then Int.of_float (Scale.get widget)
     else failwith ("int_scale_option#get_tk called when " ^
                       "widget does not exist")
   method set_tk v = match widget with
     None -> ()
   | Some widget ->
     if Winfo.exists widget
-    then Scale.set widget (float_of_int v)
+    then Scale.set widget (Float.of_int v)
 
 
   method build_widget ~live parent =
@@ -184,7 +177,7 @@ object (self)
     self#real_to_tk;
     (if live then Scale.configure
         ~command:(fun value -> self#set_real
-          (int_of_float value)) new_widget);
+          (Int.of_float value)) new_widget);
     new_widget
 
 end
@@ -231,7 +224,7 @@ end
 (*******************************************************)
 
 let string_of_float x =
-  let string = string_of_float x in
+  let string = Float.to_string x in
   if string.[String.length string - 1] = '.'
   then string ^ "0"
   else string
@@ -247,7 +240,7 @@ object (self)
     None -> failwith ( "float_entry_option#get_tk called " ^
                          "when no widget exists" )
   | Some entry ->
-    let float = float_of_string (Entry.get entry) in
+    let float = Float.of_string (Entry.get entry) in
     let float = if float <= 0.0 then get () else float in
     let string_rep = string_of_float float in
     Entry.delete_range ~start:(`Num 0) ~stop:`End entry;
@@ -422,7 +415,7 @@ object (self)
 
   val mutable widget = None
 
-  val mutable display_map = StringMap.empty
+  val mutable display_map = String.Map.empty
   val mutable display_names = []
 
 
@@ -432,10 +425,10 @@ object (self)
   method set_liveness bool = live <- bool
 
   method add_option (option : 'a display_type) =
-    if StringMap.has_key option#name display_map then
+    if Map.mem display_map option#name then
       raise (Option_exists option#name)
     else
-      ( display_map <- StringMap.add ~key:option#name
+      ( display_map <- Map.add ~key:option#name
           ~data:option display_map;
         display_names <- option#name::display_names;
       )
@@ -446,7 +439,7 @@ object (self)
   (*  Called when OK button is pressed to commit all toggles.
       Not useful in live option dialog. *)
   method private read_options =
-    StringMap.iter
+    Map.iter
       ~f:(fun ~key:_ ~data:display ->
         try display#tk_to_real with Unimplemented -> ()
       )
@@ -461,7 +454,7 @@ object (self)
     List.iter
       ~f:(fun name ->
         try
-          let display = StringMap.find name display_map in
+          let display = Map.find_exn display_map name in
           display#display ~live frame;
         with
           Not_found -> failwith ("Options.display_from_map: BUG." ^

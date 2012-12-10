@@ -16,34 +16,36 @@
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *)
 
-open StdLabels
-open MoreLabels
-
-open Tk
-open Printf
+(* Prevent Tk's Timer module being shadowed by Core's  *)
+module Timer_ = Timer
+open Core.Std
+module Timer = Timer_
 
 open State
 open Common
 open Constants
+open Tk
 
+(* period, in ms, between callbacks.  30ms corresponds to roughly 33
+   frames/sec *)
 let gap_ms = Options.named_live_value "gap_ms" 30
-               (* period, in ms, between callbacks.
-                  30ms corresponds to roughly 33 frames/sec *)
+
+(* # iterations per callback *)
 let iterations = Options.named_live_value "iterations" (gap_ms#v / 15)
-                   (* # iterations per callback *)
+
 let init_screen_width = 500
 let init_screen_height = 500
 
-let diameter_multiplier = Options.named_live_value "diameter_multiplier" 1.0
+let diameter_multiplier   = Options.named_live_value "diameter_multiplier"   1.0
 let random_vel_multiplier = Options.named_live_value "random_vel_multiplier" 1.0
 
-let penergy = Options.named_live_value "penergy" 0.0
-let kenergy = Options.named_live_value "kenergy" 0.0
-let energy = Options.named_live_value "energy" 0.0
+let penergy    = Options.named_live_value "penergy"          0.0
+let kenergy    = Options.named_live_value "kenergy"          0.0
+let energy     = Options.named_live_value "energy"           0.0
 let num_bodies = Options.named_live_value "number of bodies" 0
 
 let truebounce = new Options.live_toggle false
-let kidmode = new Options.live_toggle false
+let kidmode    = new Options.live_toggle false
 let _ =
   truebounce#set_name "truebounce";
   kidmode#set_name "kidmode"
@@ -51,25 +53,19 @@ let _ =
 let app_class = "Planets"
 
 (********************************************************)
-module IntSet =
-  AugSet.Make(struct type t = int
-                     let compare = compare
-              end)
-
-(********************************************************)
 (***  Color Operations  *********************************)
 (********************************************************)
 
-let intensity r g b  = sqrt ((float_of_int r)**2.0 +.
-                              (float_of_int g)**2.0 +.
-                              (float_of_int b)**2.0)
+let intensity r g b  = sqrt ((Float.of_int r)**2.0 +.
+                              (Float.of_int g)**2.0 +.
+                              (Float.of_int b)**2.0)
 
 let max_intensity r g b =
   let maxval = max (max r g) b in
-  let mult = 255.0 /. (float_of_int maxval) in
-  let max_r = (float_of_int r) *. mult
-  and max_g = (float_of_int g) *. mult
-  and max_b = (float_of_int b) *. mult in
+  let mult = 255.0 /. (Float.of_int maxval) in
+  let max_r = (Float.of_int r) *. mult
+  and max_g = (Float.of_int g) *. mult
+  and max_b = (Float.of_int b) *. mult in
     sqrt (max_r ** 2.0 +. max_g ** 2.0 +. max_b ** 2.0)
 
 let test_color r g b =
@@ -81,9 +77,9 @@ let renormalize r g b =
   let m = max_intensity r g b in
   let i = intensity r g b in
   let new_i = (m +. i) /. 2.0 in
-  let r = int_of_float ((float_of_int r) *. new_i /. i)
-  and g = int_of_float ((float_of_int g) *. new_i /. i)
-  and b = int_of_float ((float_of_int b) *. new_i /. i)
+  let r = Int.of_float ((Float.of_int r) *. new_i /. i)
+  and g = Int.of_float ((Float.of_int g) *. new_i /. i)
+  and b = Int.of_float ((Float.of_int b) *. new_i /. i)
   in
     assert (test_color r g b);
     rgb r g b
@@ -93,24 +89,22 @@ let rand_color () =
   renormalize (rand_range ()) (rand_range ()) (rand_range ())
 
 let change_trace_color id color =
-  try
-    let trace = IntMap.find id transient.traces in
-      transient.traces <-
-      IntMap.add ~key:id ~data:{trace with t_color = color} transient.traces
-  with
-      Not_found -> ()
+  match Map.find transient.traces id with
+  | None -> ()
+  | Some trace ->
+    transient.traces <-
+      Map.add transient.traces ~key:id ~data:{trace with t_color = color}
 
 let change_body_color_by_id id =
   let color = rand_color () in
   let changebodies bodies =
-    List.map ~f:(fun body ->
-                   if body.id = id then
-                     { body with color = color }
-                   else
-                     body)
-      bodies
+    List.map bodies ~f:(fun body ->
+      if body.id = id then { body with color }
+      else body
+    )
+
   in
-    state.bodies <- changebodies state.bodies;
+  state.bodies <- changebodies state.bodies;
     change_trace_color id color
 
 let hlcolor = `Yellow
@@ -130,9 +124,9 @@ let compute_energy () =
   let p = Physics.penergy state.bodies
   and k = Physics.kenergy state.bodies
   in
-  penergy#set (log (abs_float p));
+  penergy#set (log (Float.abs p));
   kenergy#set (log k);
-  energy#set (log (abs_float (p +. k)))
+  energy#set (log (Float.abs (p +. k)))
 
 (****************************************************)
 (****************************************************)
@@ -143,9 +137,9 @@ type ('a,'b,'c,'d) disp_state =
       mutable frame:    Widget.frame Widget.widget option;
       mutable canvas:   Widget.canvas Widget.widget option;
       mutable optionbox: ('c,'d) Options.optionbox option;
-      mutable dbodies:  'a IntMap.t;
-      mutable dtraces:  'b IntMap.t;
-      mutable tracked_ids: IntSet.t;
+      mutable dbodies:  'a Int.Map.t;
+      mutable dtraces:  'b Int.Map.t;
+      mutable tracked_ids: Int.Set.t;
       paused:   Options.live_toggle;
       tracing:  Options.live_toggle;
       tracking: Options.live_toggle;
@@ -157,9 +151,9 @@ let disp_state =
     frame = None;
     canvas = None;
     optionbox = None;
-    dbodies = IntMap.empty;
-    dtraces = IntMap.empty;
-    tracked_ids = IntSet.empty;
+    dbodies = Int.Map.empty;
+    dtraces = Int.Map.empty;
+    tracked_ids = Int.Set.empty;
     paused = new Options.live_toggle false;
     tracing = new Options.live_toggle false;
     tracking = new Options.live_toggle false;
@@ -167,7 +161,7 @@ let disp_state =
 
 
 
-let get_dbody id = IntMap.find id disp_state.dbodies
+let get_dbody id = Map.find disp_state.dbodies id
 let canvas () = uw disp_state.canvas
 
 let init_optionbox () =
@@ -329,8 +323,8 @@ object (self)
   method draw_internal body =
     let r = body.radius *. state.zoom#v
     and (x,y) = real_to_screen body.pos in
-    let (x1,y1,x2,y2) = (int_of_float (x -. r), int_of_float (y -. r),
-                         int_of_float (x +. r), int_of_float (y +. r))
+    let (x1,y1,x2,y2) = (Int.of_float (x -. r), Int.of_float (y -. r),
+                         Int.of_float (x +. r), Int.of_float (y +. r))
     in
       Canvas.configure_oval ~fill:body.color ~outline:fgcolor (canvas ()) tag;
       Canvas.coords_set (canvas ()) tag ~xys:[ (x1,y1) ; (x2,y2) ]
@@ -356,7 +350,7 @@ let new_dbody_from_body body =
 class dtrace () =
   let tag =
     try Canvas.create_line ~xys:[(0,0);(0,0)] (canvas ())
-    with e -> failwith (sprintf "line drawing failed: %s" (Printexc.to_string e))
+    with e -> failwithf "line drawing failed: %s" (Exn.to_string e) ()
   in
   let _ = Canvas.configure_line ~smooth:false (canvas ()) tag in
 object (_self)
@@ -386,7 +380,7 @@ object (self)
   val mutable color = fgcolor
 
   method draw_internal (x,y) =
-    let radius = int_of_float radius in
+    let radius = Int.of_float radius in
     let coords = [(x-radius,y-radius);(x+radius,y+radius)] in
       Canvas.coords_set (canvas ()) tag ~xys:coords;
       pos <- (x,y)
@@ -451,28 +445,24 @@ let selected_bodies pos1 pos2 =
 
 
 let selected_ids pos1 pos2 =
-  IntSet.of_list
+  Int.Set.of_list
     (List.map ~f:(fun body -> body.id) (selected_bodies pos1 pos2))
 
 
 
 let recenter_on_selection pos1 pos2 =
   debug_msg "recentering on selection";
-  let bodies = selected_bodies pos1 pos2 in
-    if bodies != [] then
-      begin
-        debug_msg (sprintf "recentering on %d bodies" (List.length bodies));
-        Physics.zero_speed_bodies bodies;
-        Physics.center_bodies bodies
-      end
-    else
-      debug_msg "no bodies selected to recenter on"
+  match selected_bodies pos1 pos2 with
+  | [] -> debug_msg "no bodies selected to recenter on"
+  | bodies ->
+    debug_msg (sprintf "recentering on %d bodies" (List.length bodies));
+    Physics.zero_speed_bodies bodies;
+    Physics.center_bodies bodies
 
 let create_rectangle color pos1 pos2 =
-  let (x1,y1) = pos1
-  and (x2,y2) = pos2
-  in
-    Canvas.create_rectangle ~x1 ~y1 ~x2 ~y2 ~outline:color (canvas ())
+  let (x1,y1) = pos1 in
+  let (x2,y2) = pos2 in
+  Canvas.create_rectangle ~x1 ~y1 ~x2 ~y2 ~outline:color (canvas ())
 
 
 (***********************************************************)
@@ -480,20 +470,20 @@ let create_rectangle color pos1 pos2 =
 (***********************************************************)
 
 let delete_dbody_id id =
-  try
-    let dbody = get_dbody id in
-      disp_state.dbodies <- IntMap.remove id disp_state.dbodies;
-      dbody#destroy
-  with Not_found ->
+  match get_dbody id with
+  | None ->
     printf "No dbody with id %d" id;
     print_newline ()
+  | Some dbody ->
+    disp_state.dbodies <- Map.remove disp_state.dbodies id;
+    dbody#destroy
 
 let delete_trace_id id =
-  try
-    let dtrace = IntMap.find id disp_state.dtraces in
-      disp_state.dtraces <- IntMap.remove id disp_state.dtraces;
-      dtrace#destroy
-  with Not_found ->
+  match Map.find disp_state.dtraces id with
+  | Some dtrace ->
+    disp_state.dtraces <- Map.remove disp_state.dtraces id;
+    dtrace#destroy
+  | None ->
     printf "No dtrace with id: %d" id;
     print_newline ()
 
@@ -504,68 +494,65 @@ let delete_trace_id id =
  *)
 
 let get_dbody body =
-  try
-    IntMap.find body.id disp_state.dbodies
-  with
-      Not_found ->
-        let dbody = new_dbody_from_body body in
-          disp_state.dbodies <- IntMap.add ~key:body.id ~data:dbody
-            disp_state.dbodies;
-          dbody
+  match Map.find disp_state.dbodies body.id with
+  | Some x -> x
+  | None ->
+    let dbody = new_dbody_from_body body in
+    disp_state.dbodies <-
+      Map.add disp_state.dbodies ~key:body.id ~data:dbody;
+    dbody
 
 let get_dtrace id =
-  try
-    IntMap.find id disp_state.dtraces
-  with
-      Not_found ->
-        let dtrace = new dtrace () in
-          disp_state.dtraces <- IntMap.add ~key:id ~data:dtrace
-            disp_state.dtraces;
-          dtrace
+  match Map.find disp_state.dtraces id with
+  | Some x -> x
+  | None ->
+    let dtrace = new dtrace () in
+    disp_state.dtraces <-
+      Map.add disp_state.dtraces ~key:id ~data:dtrace;
+    dtrace
 
 (****************)
 
 let draw_body body = (get_dbody body)#draw body
 let draw_trace ~key:id ~data:trace = (get_dtrace id)#draw trace
-let draw_bodies () = List.iter ~f:draw_body state.bodies
-let draw_traces () = IntMap.iter ~f:draw_trace transient.traces
+let draw_bodies () = List.iter state.bodies ~f:draw_body
+let draw_traces () = Map.iter transient.traces ~f:draw_trace
 
 (****************)
 
 let change_all_body_colors () =
   let changebodies bodies =
     List.map ~f:(fun body ->
-                   let color = rand_color () in
-                     change_trace_color body.id color;
-                     { body with color = color} )
+      let color = rand_color () in
+      change_trace_color body.id color;
+      { body with color = color} )
       bodies
   in
-    state.bodies <- changebodies state.bodies
+  state.bodies <- changebodies state.bodies
 
 
 (********************************************************)
 
 let remove_dead_bodies () =
-  let disp_ids = IntSet.of_list (IntMap.keys disp_state.dbodies) in
-  let body_ids = IntSet.of_list (List.map ~f:(fun body -> body.id) state.bodies) in
-  let dead_ids = IntSet.diff disp_ids body_ids in
-    IntSet.iter ~f:delete_dbody_id dead_ids
+  let disp_ids = Int.Set.of_list (Map.keys disp_state.dbodies) in
+  let body_ids = Int.Set.of_list (List.map ~f:(fun body -> body.id) state.bodies) in
+  let dead_ids = Set.diff disp_ids body_ids in
+  Set.iter dead_ids ~f:delete_dbody_id
 
 let remove_dead_traces () =
-  let disp_ids = IntSet.of_list (IntMap.keys disp_state.dtraces) in
-  let trace_ids = IntSet.of_list (IntMap.keys transient.traces) in
-  let dead_ids = IntSet.diff disp_ids trace_ids in
-    IntSet.iter ~f:delete_trace_id dead_ids
-
+  let disp_ids = Int.Set.of_list (Map.keys disp_state.dtraces) in
+  let trace_ids = Int.Set.of_list (Map.keys transient.traces) in
+  let dead_ids = Set.diff disp_ids trace_ids in
+  Set.iter dead_ids ~f:delete_trace_id
 
 let remove_all_traces () =
-  let disp_ids = IntSet.of_list (IntMap.keys disp_state.dtraces) in
-    IntSet.iter ~f:delete_trace_id disp_ids
+  let disp_ids = Int.Set.of_list (Map.keys disp_state.dtraces) in
+  Set.iter disp_ids ~f:delete_trace_id
 
 let _ =
   disp_state.tracing#register_callback
     (fun _oldval newval ->
-       if not newval then remove_all_traces ())
+      if not newval then remove_all_traces ())
 
 let remove_dead () =
   remove_dead_bodies ();
@@ -616,20 +603,18 @@ let add_new_body ~color ~pos ~vpos ~r =
 
 let add_dbody_from_tag body tag =
   let dbody = new_dbody_with_tag body tag in
-    disp_state.dbodies <- IntMap.add ~key:body.id ~data:dbody disp_state.dbodies
+  disp_state.dbodies <- Map.add disp_state.dbodies ~key:body.id ~data:dbody
 
 
 (* track center-of-mass *)
 let track_com () =
   if disp_state.tracking#v then
-    let tbodies = List.filter  ~f:(fun body ->
-                                     IntSet.mem body.id
-                                       disp_state.tracked_ids)
-                    state.bodies
+    let tbodies = List.filter state.bodies
+      ~f:(fun body -> Set.mem disp_state.tracked_ids body.id)
     in
-      if tbodies != [] then
-        (Physics.zero_speed_bodies tbodies;
-         Physics.center_bodies tbodies)
+    if not (List.is_empty tbodies) then
+      (Physics.zero_speed_bodies tbodies;
+       Physics.center_bodies tbodies)
 
 (*****************************************************)
 (*****************************************************)
@@ -643,7 +628,7 @@ let file_join filelist =
     file_join filelist ""
 
 (* let toggle b = if b then false else true  *)
-let planet_radius i = (float_of_int i) *. 5.0 *. diameter_multiplier#v
+let planet_radius i = (Float.of_int i) *. 5.0 *. diameter_multiplier#v
 
 let is_num c =
   (int_of_char '0') <= (int_of_char c) &&
@@ -658,7 +643,7 @@ let cw_rand_float level f =
   let mult =
     if x >= 0.0
     then (x**level +. 1.0) /. 2.0
-    else (-.abs_float(x**level) +. 1.0) /. 2.0
+    else (-. Float.abs (x**level) +. 1.0) /. 2.0
   in
     mult *. f
 
@@ -1210,18 +1195,19 @@ and main_key_handler e =
   let key = e.ev_Char
   and keysym = e.ev_KeySymString in
   let rec loop handlers = match handlers with
-      handler::tl ->
-        if (match handler.key with
-                Key hkey -> hkey = key
-              | KeySym hkeysym -> hkeysym = keysym
-              | KeyList hkeys -> List.mem keysym ~set:hkeys
-              | Other -> true )
-        then
-          ( debug_msg handler.description;
-            handler.handler e; )
-        else
-          loop tl
     | [] -> debug_msg ("Other Key: " ^ keysym)
+    | handler :: tl ->
+      if
+        (match handler.key with
+        | Key hkey -> hkey = key
+        | KeySym hkeysym -> hkeysym = keysym
+        | KeyList hkeys -> List.mem hkeys keysym
+        | Other -> true )
+      then
+        ( debug_msg handler.description;
+          handler.handler e; )
+      else
+        loop tl
   in
   if kidmode#v
   then loop kid_keyhandlers
@@ -1272,7 +1258,7 @@ let rec timer_cb () =
       )
   in
   let time_left_ms =
-    max 0 (int_of_float (float_of_int gap_ms#v -. MTimer.read_ms full_timer ))
+    max 0 (Int.of_float (Float.of_int gap_ms#v -. MTimer.read_ms full_timer ))
   in
   Timer.set ~ms:time_left_ms ~callback:timer_cb
 
@@ -1280,7 +1266,7 @@ let rec timer_cb () =
 let set_size e =
   debug_msg "Resizing";
   let width, height = e.ev_Width, e.ev_Height in
-    screen_center := float_of_int (width/2), float_of_int (height/2);
+    screen_center := Float.of_int (width/2), Float.of_int (height/2);
     screen_width := width;
     screen_height := height
 
