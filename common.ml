@@ -16,7 +16,7 @@
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *)
 
-let version = "0.1.13"
+let version = "0.1.14"
 
 let debugging = ref false
 let debug_msg msg =
