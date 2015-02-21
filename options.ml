@@ -84,37 +84,39 @@ object
 end
 
 (*********************************************************************)
-(* 'a is the data type, 'b is the widget type *)
 
-class virtual ['a,'b] option ?name ~text ~set:(set:'a->unit) ~get () =
-  let name = (match name with
-      None -> random_name 10
-    | Some name -> name ) in
-object (self)
-  val mutable widget = None
+(** 'a is the data type, 'b is the widget type *)
+class virtual ['a,'b] option
+                ?(name=random_name 10)
+                ~text
+                ~set:(set:'a->unit)
+                ~get
+                ()
+  =
+  object (self)
+    val mutable widget = None
 
-  val tk_var = Textvariable.coerce name
-  val name = name
-  val text = (text : string)
+    val tk_var = Textvariable.coerce name
+    val name = name
+    val text = (text : string)
 
-  method virtual build_widget : live:bool -> 'b
-  method display ~live parent =
-    ignore (self#build_widget ~live parent);
-    match widget with
-      None -> failwith "option#display: widget unexpectedly missing"
-    | Some widget ->
-      Pack.configure ~anchor:`W [widget]
+    method virtual build_widget : live:bool -> 'b
+    method display ~live parent =
+      ignore (self#build_widget ~live parent);
+      match widget with
+      | None -> failwith "option#display: widget unexpectedly missing"
+      | Some widget ->
+        Pack.configure ~anchor:`W [widget]
 
-  method virtual get_tk : 'a
-  method virtual set_tk : 'a -> unit
-  method set_real v = set v
-  method tk_to_real = set self#get_tk
-  method real_to_tk = self#set_tk (get ())
-  method name = name
-  method text = text
+    method virtual get_tk : 'a
+    method virtual set_tk : 'a -> unit
+    method set_real v = set v
+    method tk_to_real = set self#get_tk
+    method real_to_tk = self#set_tk (get ())
+    method name = name
+    method text = text
 
-  method upcast = (self :> 'c display_type)
-end
+  end
 
 
 (*********************)
@@ -401,7 +403,7 @@ let add_option optionbox ?register_cb option =
     register
       (fun oldval newval -> ignore (oldval = newval);
         option#set_tk newval));
-  optionbox#add_option option#upcast
+  optionbox#add_option (option :> _ display_type)
 
 let add_option_live optionbox lvalue option =
   add_option optionbox ~register_cb:lvalue#register_callback option

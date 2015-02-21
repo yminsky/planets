@@ -1,4 +1,5 @@
 open Core.Std
+open Tk
 
 (*  Planets:  A celestial simulator
     Copyright (C) 2001-2003  Yaron M. Minsky
@@ -18,8 +19,6 @@ open Core.Std
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *)
 
-open Core.Std
-open Tk
 
 let trunc = Int.of_float
 
