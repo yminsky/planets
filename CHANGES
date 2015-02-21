@@ -1,3 +1,7 @@
+0.1.14 - Fixed injectivity problem that prevented it from compiling
+         with recent versions of OCaml.  Also, simplified build rules
+         to use corebuild.
+
 0.1.10 - A number of small changes:
        * cleaned up the makefile and .spec file.  There is now a debian
          package as well.
